@@ -23,38 +23,60 @@ app.use(express.urlencoded({ extended: true }));
 // Use routes
 app.use("/", indexRoutes);
 
-let waitingusers = [];
-let room = {};
+let waitingUsers = [];  // Changed to camelCase
+let rooms = {};         // Changed to plural and more descriptive
 
 io.on("connection", function (socket) {
-  socket.on("joinroom", function () {
-    if (waitingusers.length > 0) {
-      let partner = waitingusers.shift();
-      const roomname = `${socket.id}-${partner.id}`;
-      socket.join(roomname);
-      partner.join(roomname);
+  console.log(`New connection: ${socket.id}`);
 
-      // Optional: store room info
-      room[socket.id] = roomname;
-      room[partner.id] = roomname;
+  socket.on("joinroom", function () {
+    if (waitingUsers.length > 0) {
+      let partner = waitingUsers.shift();
+      const roomName = `${socket.id}-${partner.id}`;
+      
+      // Join the room for both users
+      socket.join(roomName);
+      partner.join(roomName);
+
+      // Store room info
+      rooms[socket.id] = roomName;
+      rooms[partner.id] = roomName;
 
       // Notify both users
-      io.to(roomname).emit("joined");
+      io.to(roomName).emit("joined", roomName);
+      console.log(`Room created: ${roomName}`);
     } else {
-      waitingusers.push(socket);
+      waitingUsers.push(socket);
+      console.log(`User ${socket.id} waiting for partner`);
     }
   });
 
+  socket.on("message", function(data) {
+    if (!data.room || !rooms[socket.id]) {
+      console.error("Invalid room for message");
+      return;
+    }
+    socket.to(data.room).emit("message", data.message);  // Fixed broadcast to room
+    console.log(`Message in ${data.room}: ${data.message}`);
+  });
+
   socket.on("disconnect", () => {
-    // Remove from waiting list on disconnect
-    let index=waitingusers.findIndex((waitinguser)=>
-      waitinguser.id==socket.id
-    )
-    waitingusers.splice(index,1)
+    // Clean up waiting users
+    waitingUsers = waitingUsers.filter(user => user.id !== socket.id);
+    
+    // Clean up room assignments
+    if (rooms[socket.id]) {
+      const roomName = rooms[socket.id];
+      delete rooms[socket.id];
+      console.log(`User ${socket.id} disconnected from ${roomName}`);
+    } else {
+      console.log(`User ${socket.id} disconnected`);
+    }
   });
 });
 
 // Start server
-server.listen(3000, () => {
-  console.log("Server running on http://localhost:3000");
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
 });
