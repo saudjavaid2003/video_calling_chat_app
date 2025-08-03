@@ -81,6 +81,7 @@ socket.on("startVideoCall", function({ room }) {  // Fixed parentheses and destr
 });
 socket.on("acceptCall", function({ room }) {
   console.log("vamoss",room);
+  socket.broadcast.to(room).emit("callAccepted")
   //yahan per masla ha 
 });
 });
