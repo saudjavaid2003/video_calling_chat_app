@@ -1,3 +1,4 @@
+// server.js
 const express = require("express");
 const path = require("path");
 const http = require("http");
@@ -12,37 +13,38 @@ const indexRoutes = require("./routes/index");
 
 // Set view engine
 app.set("view engine", "ejs");
+app.set("views", path.join(__dirname, "views")); // optional if "views" is in root
 
-// Serve static files from "public" folder
+// Serve static files
 app.use(express.static(path.join(__dirname, "public")));
 
 // Body parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Use routes
+// Use index routes
 app.use("/", indexRoutes);
 
-let waitingUsers = [];  // Changed to camelCase
-let rooms = {};         // Changed to plural and more descriptive
+// Socket-related data
+let waitingUsers = [];
+let rooms = {};
 
-io.on("connection", function (socket) {
+// Socket.io logic
+io.on("connection", (socket) => {
   console.log(`New connection: ${socket.id}`);
 
-  socket.on("joinroom", function () {
+  // Matchmaking
+  socket.on("joinroom", () => {
     if (waitingUsers.length > 0) {
-      let partner = waitingUsers.shift();
+      const partner = waitingUsers.shift();
       const roomName = `${socket.id}-${partner.id}`;
-      
-      // Join the room for both users
+
       socket.join(roomName);
       partner.join(roomName);
 
-      // Store room info
       rooms[socket.id] = roomName;
       rooms[partner.id] = roomName;
 
-      // Notify both users
       io.to(roomName).emit("joined", roomName);
       console.log(`Room created: ${roomName}`);
     } else {
@@ -51,43 +53,67 @@ io.on("connection", function (socket) {
     }
   });
 
-  socket.on("message", function(data) {
-    if (!data.room || !rooms[socket.id]) {
-      console.error("Invalid room for message");
+  // Text messaging
+  socket.on("message", ({ room, message }) => {
+    if (!room || !rooms[socket.id]) {
+      console.error("Invalid room or user not in room");
       return;
     }
-    socket.to(data.room).emit("message", data.message);  // Fixed broadcast to room
-    console.log(`Message in ${data.room}: ${data.message}`);
+    socket.to(room).emit("message", message);
+    console.log(`Message in ${room}: ${message}`);
   });
 
+  // Video call request
+  socket.on("startVideoCall", ({ room }) => {
+    if (room) {
+      socket.to(room).emit("incomingCall", {
+        from: socket.id,
+        timestamp: Date.now()
+      });
+      console.log(`Video call initiated by ${socket.id} in room ${room}`);
+    }
+  });
+
+  // Video call acceptance
+  socket.on("acceptCall", ({ room }) => {
+    if (room) {
+      console.log(`Call accepted in room: ${room}`);
+      socket.to(room).emit("callAccepted");
+    }
+  });
+
+  // Video call rejection (optional)
+  socket.on("rejectCall", ({ room }) => {
+    if (room) {
+      socket.to(room).emit("callRejected");
+      console.log(`Call rejected in room: ${room}`);
+    }
+  });
+
+  // Signaling for WebRTC
+  socket.on("signalingMessage", ({ room, message }) => {
+    if (room) {
+      socket.to(room).emit("signalingMessage", message);
+    }
+  });
+
+  // Disconnection
   socket.on("disconnect", () => {
-    // Clean up waiting users
     waitingUsers = waitingUsers.filter(user => user.id !== socket.id);
-    
-    // Clean up room assignments
+
     if (rooms[socket.id]) {
       const roomName = rooms[socket.id];
       delete rooms[socket.id];
+      socket.to(roomName).emit("peerDisconnected");
       console.log(`User ${socket.id} disconnected from ${roomName}`);
     } else {
       console.log(`User ${socket.id} disconnected`);
     }
   });
-socket.on("startVideoCall", function({ room }) {  // Fixed parentheses and destructuring
-    socket.to(room).emit("incomingCall", {        // Fixed typo in "incomingCall"
-        from: socket.id,
-        timestamp: Date.now()
-    });
-});
-socket.on("acceptCall", function({ room }) {
-  console.log("vamoss",room);
-  socket.broadcast.to(room).emit("callAccepted")
-  //yahan per masla ha 
-});
 });
 
 // Start server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running at http://localhost:${PORT}`);
 });
