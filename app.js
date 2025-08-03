@@ -73,6 +73,16 @@ io.on("connection", function (socket) {
       console.log(`User ${socket.id} disconnected`);
     }
   });
+socket.on("startVideoCall", function({ room }) {  // Fixed parentheses and destructuring
+    socket.to(room).emit("incomingCall", {        // Fixed typo in "incomingCall"
+        from: socket.id,
+        timestamp: Date.now()
+    });
+});
+socket.on("acceptCall", function({ room }) {
+  console.log("vamoss",room);
+  //yahan per masla ha 
+});
 });
 
 // Start server

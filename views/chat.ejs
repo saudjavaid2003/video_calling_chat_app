@@ -213,7 +213,7 @@
                 iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
             };
             // ya stun server server ha 
-            
+
 
             const initialize = async () => {
                 socket.on("signalingMessage", handleSignalingMessage);
@@ -330,11 +330,34 @@
             }
 
 
-            document.querySelector("#video-call-btn")
-                .addEventListener("click", function () {
-                    socket.emit("startVideoCall", { room })
-                })
+function setupVideoCallButton() {
+  const videoCallBtn = document.querySelector("#video-call-btn");
+  
+  if (!videoCallBtn) {
+    console.error("Video call button not found");
+    return;
+  }
 
+  videoCallBtn.addEventListener("click", function() {
+    // 1. Show the incoming call UI (simulating the recipient's view)
+    document.querySelector("#incoming-call").classList.remove("hidden");
+    
+    // 2. Keep your existing signaling logic
+    console.log("Initiating video call in room:", room);
+    if (socket && socket.connected) {
+      socket.emit("startVideoCall", { room });
+    } else {
+      console.error("Socket not connected");
+    }
+    
+    // 3. Optional: Add visual feedback for the caller
+    this.classList.add("bg-blue-500"); // Visual feedback
+    setTimeout(() => this.classList.remove("bg-blue-500"), 300);
+  });
+}
+
+// Call this function when your page loads
+document.addEventListener("DOMContentLoaded", setupVideoCallButton);
             socket.on("incomingCall", function () {
                 console.log("hey");
                 document.querySelector("#incoming-call").classList.remove("hidden");
